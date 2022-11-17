@@ -16,7 +16,7 @@ import time
 import os
 
 from pipeline_stable_diffusion import StableDiffusionFastDeployPipeline
-from scheduling_utils import PNDMScheduler, EulerAncestralDiscreteScheduler
+from scheduling_utils import PNDMScheduler
 
 try:
     from paddlenlp.transformers import CLIPTokenizer
@@ -68,13 +68,7 @@ def parse_arguments():
         "--backend",
         type=str,
         default='paddle',
-        # Note(zhoushunjie): Will support 'tensorrt', 'paddle-tensorrt' soon.
-        choices=[
-            'onnx_runtime',
-            'paddle',
-            "paddle-tensorrt",
-            "tensorrt"
-        ],
+        choices=['onnx_runtime', 'tensorrt', 'paddle', 'paddle-tensorrt'],
         help="The inference runtime backend of unet model and text encoder model."
     )
     parser.add_argument(
@@ -91,12 +85,6 @@ def parse_arguments():
         type=int,
         default=0,
         help="The selected gpu id. -1 means use cpu")
-    parser.add_argument(
-        "--scheduler",
-        type=str,
-        default='pndm',
-        choices=['pndm', 'euler_ancestral'],
-        help="The scheduler type of stable diffusion.")
     return parser.parse_args()
 
 
@@ -122,12 +110,7 @@ def create_paddle_inference_runtime(model_dir,
                                     use_fp16=False,
                                     device_id=0):
     option = fd.RuntimeOption()
-    option.enable_paddle_log_info()
     option.use_paddle_backend()
-    if device_id == -1:
-        option.use_cpu()
-    else:
-        option.use_gpu(device_id)
     if use_trt:
         option.use_trt_backend()
         option.enable_paddle_to_trt()
@@ -144,6 +127,10 @@ def create_paddle_inference_runtime(model_dir,
                     min_shape=shape_dict["min_shape"],
                     opt_shape=shape_dict.get("opt_shape", None),
                     max_shape=shape_dict.get("max_shape", None))
+    if device_id == -1:
+        option.use_cpu()
+    else:
+        option.use_gpu(device_id)
     model_file = os.path.join(model_dir, model_prefix, "inference.pdmodel")
     params_file = os.path.join(model_dir, model_prefix, "inference.pdiparams")
     option.set_model_path(model_file, params_file)
@@ -181,39 +168,20 @@ def create_trt_runtime(model_dir,
     return fd.Runtime(option)
 
 
-def get_scheduler(args):
-    if args.scheduler == "pndm":
-        scheduler = PNDMScheduler(
-            beta_end=0.012,
-            beta_schedule="scaled_linear",
-            beta_start=0.00085,
-            num_train_timesteps=1000,
-            skip_prk_steps=True)
-    elif args.scheduler == "euler_ancestral":
-        scheduler = EulerAncestralDiscreteScheduler(
-            beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear")
-    else:
-        raise ValueError(
-            f"Scheduler '{args.scheduler}' is not supportted right now.")
-    return scheduler
-
-
 if __name__ == "__main__":
     args = parse_arguments()
     # 1. Init scheduler
-    scheduler = get_scheduler(args)
+    scheduler = PNDMScheduler(
+        beta_end=0.012,
+        beta_schedule="scaled_linear",
+        beta_start=0.00085,
+        num_train_timesteps=1000,
+        skip_prk_steps=True)
 
     # 2. Init tokenizer
     tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
 
     # 3. Set dynamic shape for trt backend
-    text_encoder_shape = {
-        "input_ids" : {
-            "min_shape": [1, 77],
-            "max_shape": [2, 77],
-            "opt_shape": [2, 77],
-        }
-    }
     vae_dynamic_shape = {
         "latent": {
             "min_shape": [1, 4, 64, 64],
@@ -266,15 +234,13 @@ if __name__ == "__main__":
             args.model_dir,
             args.text_encoder_model_prefix,
             use_trt,
-            # False,
-            text_encoder_shape,
+            None,
             use_fp16=args.use_fp16,
             device_id=args.device_id)
         vae_decoder_runtime = create_paddle_inference_runtime(
             args.model_dir,
             args.vae_model_prefix,
-            use_trt, # use trt
-            # False,
+            use_trt,
             vae_dynamic_shape,
             use_fp16=args.use_fp16,
             device_id=args.device_id)
@@ -282,18 +248,14 @@ if __name__ == "__main__":
         unet_runtime = create_paddle_inference_runtime(
             args.model_dir,
             args.unet_model_prefix,
-            use_trt, # still have accuracy problem for unet in trt
-            # False,
+            use_trt,
             unet_dynamic_shape,
             use_fp16=args.use_fp16,
             device_id=args.device_id)
         print(f"Spend {time.time() - start : .2f} s to load unet model.")
     elif args.backend == "tensorrt":
-        text_encoder_runtime = create_trt_runtime(
-            args.model_dir, args.text_encoder_model_prefix, args.model_format,
-            workspace=(1 << 30),
-            dynamic_shape=text_encoder_shape,
-            device_id=args.device_id)
+        text_encoder_runtime = create_ort_runtime(
+            args.model_dir, args.text_encoder_model_prefix, args.model_format)
         vae_decoder_runtime = create_trt_runtime(
             args.model_dir,
             args.vae_model_prefix,
@@ -324,6 +286,9 @@ if __name__ == "__main__":
     print(
         f"Run the stable diffusion pipeline {args.benchmark_steps} times to test the performance."
     )
+    print(f'warm up 1 time')
+    for step in range(1):
+        image = pipe(prompt, num_inference_steps=args.inference_steps)[0]
     for step in range(args.benchmark_steps):
         start = time.time()
         image = pipe(prompt, num_inference_steps=args.inference_steps)[0]

@@ -72,6 +72,7 @@ def parse_arguments():
         choices=[
             'onnx_runtime',
             'paddle',
+            "paddle-tensorrt"
         ],
         help="The inference runtime backend of unet model and text encoder model."
     )
@@ -120,6 +121,7 @@ def create_paddle_inference_runtime(model_dir,
                                     use_fp16=False,
                                     device_id=0):
     option = fd.RuntimeOption()
+    option.enable_paddle_log_info()
     option.use_paddle_backend()
     if device_id == -1:
         option.use_cpu()
@@ -204,6 +206,13 @@ if __name__ == "__main__":
     tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
 
     # 3. Set dynamic shape for trt backend
+    text_encoder_shape = {
+        "input_ids" : {
+            "min_shape": [1, 77],
+            "max_shape": [2, 77],
+            "opt_shape": [2, 77],
+        }
+    }
     vae_dynamic_shape = {
         "latent": {
             "min_shape": [1, 4, 64, 64],
@@ -252,15 +261,19 @@ if __name__ == "__main__":
     elif args.backend == "paddle" or args.backend == "paddle-tensorrt":
         use_trt = True if args.backend == "paddle-tensorrt" else False
         # Note(zhoushunjie): Will change to paddle runtime later
-        text_encoder_runtime = create_ort_runtime(
+        text_encoder_runtime = create_paddle_inference_runtime(
             args.model_dir,
             args.text_encoder_model_prefix,
-            args.model_format,
+            use_trt,
+            # False,
+            text_encoder_shape,
+            use_fp16=args.use_fp16,
             device_id=args.device_id)
         vae_decoder_runtime = create_paddle_inference_runtime(
             args.model_dir,
             args.vae_model_prefix,
-            use_trt,
+            use_trt, # use trt
+            # False,
             vae_dynamic_shape,
             use_fp16=args.use_fp16,
             device_id=args.device_id)
@@ -268,14 +281,18 @@ if __name__ == "__main__":
         unet_runtime = create_paddle_inference_runtime(
             args.model_dir,
             args.unet_model_prefix,
-            use_trt,
+            use_trt, # still have accuracy problem for unet in trt
+            # False,
             unet_dynamic_shape,
             use_fp16=args.use_fp16,
             device_id=args.device_id)
         print(f"Spend {time.time() - start : .2f} s to load unet model.")
     elif args.backend == "tensorrt":
-        text_encoder_runtime = create_ort_runtime(
-            args.model_dir, args.text_encoder_model_prefix, args.model_format)
+        text_encoder_runtime = create_trt_runtime(
+            args.model_dir, args.text_encoder_model_prefix, args.model_format,
+            workspace=(1 << 30),
+            dynamic_shape=text_encoder_shape,
+            device_id=args.device_id)
         vae_decoder_runtime = create_trt_runtime(
             args.model_dir,
             args.vae_model_prefix,

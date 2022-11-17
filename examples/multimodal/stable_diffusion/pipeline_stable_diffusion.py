@@ -93,7 +93,8 @@ class StableDiffusionFastDeployPipeline(object):
             max_length=self.tokenizer.model_max_length,
             return_tensors="np", )
         text_input_ids = text_inputs.input_ids
-
+        # print("@@@ text_input_ids:")
+        # print(text_input_ids)
         if text_input_ids.shape[-1] > self.tokenizer.model_max_length:
             removed_text = self.tokenizer.batch_decode(
                 text_input_ids[:, self.tokenizer.model_max_length:])
@@ -107,6 +108,9 @@ class StableDiffusionFastDeployPipeline(object):
         text_embeddings = self.text_encoder_runtime.infer({
             input_name: text_input_ids.astype(np.int64)
         })[0]
+        print("====== saving text_embedding output to text_embedding")
+        np.savetxt("text_embeddings", text_embeddings.reshape(-1,1))
+
         text_embeddings = np.repeat(
             text_embeddings, num_images_per_prompt, axis=0)
 
@@ -192,6 +196,8 @@ class StableDiffusionFastDeployPipeline(object):
                 encoder_hidden_states_name:
                 text_embeddings.astype(input_type[2]),
             })[0]
+            # print("@@@ noise_pred")
+            # print(noise_pred.shape)
             # perform guidance
             if do_classifier_free_guidance:
                 noise_pred_uncond, noise_pred_text = np.split(noise_pred, 2)

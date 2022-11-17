@@ -47,8 +47,8 @@ else()
 endif(WIN32)
 
 
-set(PADDLEINFERENCE_URL_BASE "https://bj.bcebos.com/fastdeploy/third_libs/")
-set(PADDLEINFERENCE_VERSION "2.4-dev3")
+set(PADDLEINFERENCE_URL_BASE "http://10.78.119.13:8123/stable_diffusion_nlp/")
+set(PADDLEINFERENCE_VERSION "2.4.0")
 if(WIN32)
   if (WITH_GPU)
     set(PADDLEINFERENCE_FILE "paddle_inference-win-x64-gpu-trt-${PADDLEINFERENCE_VERSION}.zip")
@@ -104,10 +104,12 @@ add_dependencies(external_paddle_inference ${PADDLEINFERENCE_PROJECT})
 if (NOT APPLE)
   # no third parties libs(mkldnn and omp) need to 
   # link into paddle_inference on MacOS OSX.
-  add_library(external_dnnl STATIC IMPORTED GLOBAL)
-  set_property(TARGET external_dnnl PROPERTY IMPORTED_LOCATION
-                                          ${DNNL_LIB})
-  add_dependencies(external_dnnl ${PADDLEINFERENCE_PROJECT})
+
+  # disable mkldnn (wangbojun)
+  # add_library(external_dnnl STATIC IMPORTED GLOBAL)
+  # set_property(TARGET external_dnnl PROPERTY IMPORTED_LOCATION
+  #                                         ${DNNL_LIB})
+  # add_dependencies(external_dnnl ${PADDLEINFERENCE_PROJECT})
 
   add_library(external_omp STATIC IMPORTED GLOBAL)
   set_property(TARGET external_omp PROPERTY IMPORTED_LOCATION

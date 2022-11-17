@@ -36,7 +36,10 @@ void PaddleBackend::BuildOption(const PaddleBackendOption& option) {
         FDWARNING << "Detect that tensorrt cache file has been set to " << option.trt_option.serialize_file << ", but while enable paddle2trt, please notice that the cache file will save to the directory where paddle model saved." << std::endl;
         use_static = true;
       }
-      config_.EnableTensorRtEngine(option.trt_option.max_workspace_size, option.trt_option.max_batch_size, 3, precision, use_static);
+      // wangbojun set min_subgraph_size=0 for debug
+      // config_.EnableTensorRtEngine(option.trt_option.max_workspace_size, option.trt_option.max_batch_size, 3, precision, use_static);
+      config_.EnableTensorRtEngine(option.trt_option.max_workspace_size, option.trt_option.max_batch_size, 20, precision, use_static);
+      // config_.SwitchIrDebug(true);
       SetTRTDynamicShapeToConfig(option);
 #else
       FDWARNING << "The FastDeploy is not compiled with TensorRT backend, so will fallback to GPU with Paddle Inference Backend." << std::endl;
@@ -168,6 +171,17 @@ bool PaddleBackend::InitFromPaddle(const std::string& model_file,
     config_.EnableTunedTensorRtDynamicShape(shape_range_info, false);
   }
 #endif
+  // wangbojun for debug, delete some pass
+  // auto pass_builder = config_.pass_builder();
+
+  // pass_builder->DeletePass("preln_residual_bias_fuse_pass"); 
+  // pass_builder->DeletePass("fc_elementwise_layernorm_fuse_pass"); 
+
+  // pass_builder->DeletePass("fc_fuse_pass"); 
+  // pass_builder->DeletePass("conv_elementwise_add_fuse_pass"); 
+  // pass_builder->DeletePass("multihead_matmul_fuse_pass_v2"); 
+  // pass_builder->DeletePass("conv_elementwise_add_fuse_pass");   
+  config_.Exp_DisableTensorRtOPs({"sin","cos"});
   predictor_ = paddle_infer::CreatePredictor(config_);
   initialized_ = true;
   return true;

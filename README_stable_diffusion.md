@@ -19,11 +19,17 @@ python setup.py bdist_wheel
 3. 导出模型: FastDeploy/examples/multimodal/stable_diffusion
 为了兼容现版本的interpret 算子进入trt, 导出固定shape的模型
 ```
+# 安装依赖
+cd FastDeploy/examples/multimodal/stable_diffusion
+pip install -r requirements_paddle.txt
+
 python export_model_512.py --pretrained_model_name_or_path runwayml/stable-diffusion-v1-5 --output_path stable-diffusion-v1-5_512
 ```
 
 3. 运行推理: FastDeploy/examples/multimodal/stable_diffusion
 ```
+cd FastDeploy/examples/multimodal/stable_diffusion
+# 使用paddle-tensorrt运行推理
 python infer.py  --model_dir stable-diffusion-v1-5_512 \
                  --scheduler "euler_ancestral" \
                  --backend paddle-tensorrt \

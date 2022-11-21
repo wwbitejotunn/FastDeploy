@@ -122,7 +122,7 @@ def create_paddle_inference_runtime(model_dir,
                                     use_fp16=False,
                                     device_id=0):
     option = fd.RuntimeOption()
-    option.enable_paddle_log_info()
+    # option.enable_paddle_log_info()
     option.use_paddle_backend()
     if device_id == -1:
         option.use_cpu()
@@ -262,6 +262,7 @@ if __name__ == "__main__":
     elif args.backend == "paddle" or args.backend == "paddle-tensorrt":
         use_trt = True if args.backend == "paddle-tensorrt" else False
         # Note(zhoushunjie): Will change to paddle runtime later
+        print("=== build text_encoder_runtime")
         text_encoder_runtime = create_paddle_inference_runtime(
             args.model_dir,
             args.text_encoder_model_prefix,
@@ -270,6 +271,8 @@ if __name__ == "__main__":
             text_encoder_shape,
             use_fp16=args.use_fp16,
             device_id=args.device_id)
+        print("=== build vae_decoder_runtime")
+
         vae_decoder_runtime = create_paddle_inference_runtime(
             args.model_dir,
             args.vae_model_prefix,
@@ -278,6 +281,8 @@ if __name__ == "__main__":
             vae_dynamic_shape,
             use_fp16=args.use_fp16,
             device_id=args.device_id)
+        print("=== build unet_runtime")
+
         start = time.time()
         unet_runtime = create_paddle_inference_runtime(
             args.model_dir,

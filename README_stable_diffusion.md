@@ -2,6 +2,8 @@
 1. 代码目录: FastDeploy/examples/multimodal/stable_diffusion
 
 2. 安装fast deploy: FastDeploy/python
+注意, 其中TRT_DIRECTORY需要替换为本机tensorrt地址
+环境:cuda:11.2, cudnn:8.2, tensorrt:8.4.0.6
 ```
 export ENABLE_ORT_BACKEND=ON
 export ENABLE_PADDLE_BACKEND=ON
@@ -10,12 +12,11 @@ export ENABLE_VISION=ON
 export ENABLE_TEXT=ON
 export ENABLE_TRT_BACKEND=ON
 export WITH_GPU=ON
-export TRT_DIRECTORY=/Paddle/TensorRT-8.4.1.5
+export TRT_DIRECTORY=/Paddle/TensorRT-8.4.0.6
 export CUDA_DIRECTORY=/usr/local/cuda
 python setup.py build
 python setup.py bdist_wheel
 ```
-
 3. 导出模型: FastDeploy/examples/multimodal/stable_diffusion
 为了兼容现版本的interpret 算子进入trt, 导出固定shape的模型
 ```

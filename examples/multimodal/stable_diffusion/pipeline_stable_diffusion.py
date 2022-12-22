@@ -62,6 +62,7 @@ class StableDiffusionFastDeployPipeline(object):
             return_dict: bool=True,
             callback: Optional[Callable[[int, int, np.ndarray], None]]=None,
             callback_steps: Optional[int]=1,
+            vae_batch_size: Optional[int]=None,
             **kwargs, ):
         if isinstance(prompt, str):
             batch_size = 1
@@ -71,7 +72,7 @@ class StableDiffusionFastDeployPipeline(object):
             raise ValueError(
                 f"`prompt` has to be of type `str` or `list` but is {type(prompt)}"
             )
-
+        vae_batch_size = vae_batch_size if vae_batch_size is not None else batch_size
         if height % 8 != 0 or width % 8 != 0:
             raise ValueError(
                 f"`height` and `width` have to be divisible by 8 but are {height} and {width}."
@@ -219,9 +220,18 @@ class StableDiffusionFastDeployPipeline(object):
         if self.vae_decoder_runtime.get_input_info(
                 0).dtype == fd.FDDataType.FP32:
             input_dtype = np.float32
-        image = self.vae_decoder_runtime.infer({
-            sample_name: latents.astype(input_dtype)
-        })[0]
+        if (vae_batch_size == batch_size):
+            image = self.vae_decoder_runtime.infer({
+                sample_name: latents.astype(input_dtype)
+            })[0]
+        else:
+            chunk_sizes = [(i + 1) * self.decoder_batch_chunk_size for i in
+                range(batch_size // self.decoder_batch_chunk_size)]
+            latents=np.split(latents,chunk_sizes,axis=0)
+            latents = [a for a in latents if a.size>0]
+            image = [self.vae_decoder_runtime.infer({
+                        sample_name: latent_chunk.astype(input_dtype)
+                    })[0] for latent_chunk in latents]
 
         image = np.clip(image / 2 + 0.5, 0, 1)
         image = image.transpose((0, 2, 3, 1))

@@ -79,7 +79,7 @@ def parse_arguments():
     )
     parser.add_argument(
         "--image_path",
-        default="fd_astronaut_rides_horse.png",
+        default="./outputs",
         help="The model directory of diffusion_model.")
     parser.add_argument(
         "--use_fp16",
@@ -97,6 +97,16 @@ def parse_arguments():
         default='pndm',
         choices=['pndm', 'euler_ancestral'],
         help="The scheduler type of stable diffusion.")
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=1,
+        help="the Batch size.")
+    parser.add_argument(
+        "--vae_batch_size",
+        type=int,
+        default=None,
+        help="the Batch size.")
     return parser.parse_args()
 
 
@@ -202,7 +212,8 @@ if __name__ == "__main__":
     args = parse_arguments()
     # 1. Init scheduler
     scheduler = get_scheduler(args)
-
+    batch_size=args.batch_size
+    vae_batch_size=args.vae_batch_size if args.vae_batch_size is not None else batch_size
     # 2. Init tokenizer
     tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
 
@@ -210,23 +221,23 @@ if __name__ == "__main__":
     text_encoder_shape = {
         "input_ids" : {
             "min_shape": [1, 77],
-            "max_shape": [2, 77],
-            "opt_shape": [2, 77],
+            "max_shape": [batch_size, 77],
+            "opt_shape": [batch_size, 77],
         }
     }
     vae_dynamic_shape = {
         "latent": {
             "min_shape": [1, 4, 64, 64],
-            "max_shape": [2, 4, 64, 64],
-            "opt_shape": [2, 4, 64, 64],
+            "max_shape": [vae_batch_size, 4, 64, 64],
+            "opt_shape": [vae_batch_size, 4, 64, 64],
         }
     }
 
     unet_dynamic_shape = {
         "latent_input": {
             "min_shape": [1, 4, 64, 64],
-            "max_shape": [2, 4, 64, 64],
-            "opt_shape": [2, 4, 64, 64],
+            "max_shape": [batch_size*2, 4, 64, 64],
+            "opt_shape": [batch_size*2, 4, 64, 64],
         },
         "timestep": {
             "min_shape": [1],
@@ -235,8 +246,8 @@ if __name__ == "__main__":
         },
         "encoder_embedding": {
             "min_shape": [1, 77, 768],
-            "max_shape": [2, 77, 768],
-            "opt_shape": [2, 77, 768],
+            "max_shape": [batch_size*2, 77, 768],
+            "opt_shape": [batch_size*2, 77, 768],
         },
     }
 
@@ -321,9 +332,12 @@ if __name__ == "__main__":
         unet_runtime=unet_runtime,
         scheduler=scheduler)
 
-    prompt = "a photo of an astronaut riding a horse on mars"
+    # prompt = ["a photo of an astronaut riding a horse on mars",
+    #           "a photo of an astronaut riding a bull on earth"]
+    prompt = ["a photo of an astronaut riding a horse on mars"]
+
     # Warm up
-    pipe(prompt, num_inference_steps=10)
+    pipe(prompt, num_inference_steps=10, vae_batch_size=vae_batch_size)
 
     time_costs = []
     print(
@@ -331,7 +345,7 @@ if __name__ == "__main__":
     )
     for step in range(args.benchmark_steps):
         start = time.time()
-        image = pipe(prompt, num_inference_steps=args.inference_steps)[0]
+        images = pipe(prompt, num_inference_steps=args.inference_steps,vae_batch_size=vae_batch_size)
         latency = time.time() - start
         time_costs += [latency]
         print(f"No {step:3d} time cost: {latency:2f} s")
@@ -339,5 +353,7 @@ if __name__ == "__main__":
         f"Mean latency: {np.mean(time_costs):2f} s, p50 latency: {np.percentile(time_costs, 50):2f} s, "
         f"p90 latency: {np.percentile(time_costs, 90):2f} s, p95 latency: {np.percentile(time_costs, 95):2f} s."
     )
-    image.save(args.image_path)
-    print(f"Image saved in {args.image_path}!")
+    for i, image in enumerate(images):
+        saved_path=args.image_path+'_'.join(prompt[i].split(" "))+".png"
+        image.save(saved_path)
+        print(f"Image saved in {saved_path}!")

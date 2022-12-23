@@ -47,8 +47,8 @@ else()
 endif(WIN32)
 
 
-set(PADDLEINFERENCE_URL_BASE "http://10.78.119.13:8123/stable_diffusion_nlp/")
-set(PADDLEINFERENCE_VERSION "2.4.0")
+set(PADDLEINFERENCE_URL_BASE "http://10.78.119.13:8123/stable_diffusion_nlp/bugfix/paddle/build_sm70/")
+set(PADDLEINFERENCE_VERSION "0.0.0")
 if(WIN32)
   if (WITH_GPU)
     set(PADDLEINFERENCE_FILE "paddle_inference-win-x64-gpu-trt-${PADDLEINFERENCE_VERSION}.zip")

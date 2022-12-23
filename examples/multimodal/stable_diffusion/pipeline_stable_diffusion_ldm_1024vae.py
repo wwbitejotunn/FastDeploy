@@ -51,8 +51,8 @@ class StableDiffusionFastDeployPipeline(object):
     def __call__(
             self,
             prompt: Union[str, List[str]],
-            height: Optional[int]=512,
-            width: Optional[int]=512,
+            height: Optional[int]=1024,
+            width: Optional[int]=1024,
             num_inference_steps: Optional[int]=50,
             guidance_scale: Optional[float]=7.5,
             negative_prompt: Optional[Union[str, List[str]]]=None,
@@ -75,9 +75,9 @@ class StableDiffusionFastDeployPipeline(object):
                 f"`prompt` has to be of type `str` or `list` but is {type(prompt)}"
             )
         vae_batch_size = vae_batch_size if vae_batch_size is not None else batch_size
-        if height % 8 != 0 or width % 8 != 0:
+        if height % 16 != 0 or width % 16 != 0:
             raise ValueError(
-                f"`height` and `width` have to be divisible by 8 but are {height} and {width}."
+                f"`height` and `width` have to be divisible by 16 but are {height} and {width}."
             )
 
         if (callback_steps is None) or (callback_steps is not None and (
@@ -156,8 +156,8 @@ class StableDiffusionFastDeployPipeline(object):
 
         # get the initial random noise unless the user supplied it
         latents_dtype = text_embeddings.dtype
-        latents_shape = (batch_size * num_images_per_prompt, 4, height // 8,
-                         width // 8)
+        latents_shape = (batch_size * num_images_per_prompt, 4, height // 16,
+                         width // 16)
         if latents is None:
             latents = generator.randn(*latents_shape).astype(latents_dtype)
         elif latents.shape != latents_shape:
@@ -229,19 +229,19 @@ class StableDiffusionFastDeployPipeline(object):
                 sample_name: latents.astype(input_dtype)
             })[0]
         else:
-            chunk_sizes = [(i + 1) * self.decoder_batch_chunk_size for i in
-                range(batch_size // self.decoder_batch_chunk_size)]
+            chunk_sizes = [(i + 1) * vae_batch_size for i in
+                range(batch_size // vae_batch_size)]
             latents=np.split(latents,chunk_sizes,axis=0)
             latents = [a for a in latents if a.size>0]
-            image = [self.vae_decoder_runtime.infer({
+            images = np.concatenate([self.vae_decoder_runtime.infer({
                         sample_name: latent_chunk.astype(input_dtype)
-                    })[0] for latent_chunk in latents]
+                    })[0] for latent_chunk in latents])
         print("vae latency",time.perf_counter()-vae_start_time)
-        image = np.clip(image / 2 + 0.5, 0, 1)
-        image = image.transpose((0, 2, 3, 1))
+        images = np.clip(images / 2 + 0.5, 0, 1)
+        images = images.transpose((0, 2, 3, 1))
         if output_type == "pil":
-            image = self.numpy_to_pil(image)
-        return image
+            images = self.numpy_to_pil(images)
+        return images
 
     @staticmethod
     def numpy_to_pil(images):

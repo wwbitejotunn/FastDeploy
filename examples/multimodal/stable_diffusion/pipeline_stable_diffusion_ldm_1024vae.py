@@ -225,7 +225,7 @@ class StableDiffusionFastDeployPipeline(object):
             input_dtype = np.float32
         if (vae_batch_size == batch_size):
             print("vae_batch_size == batch_size")
-            image = self.vae_decoder_runtime.infer({
+            images = self.vae_decoder_runtime.infer({
                 sample_name: latents.astype(input_dtype)
             })[0]
         else:

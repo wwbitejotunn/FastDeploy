@@ -355,9 +355,9 @@ if __name__ == "__main__":
         unet_runtime=unet_runtime,
         scheduler=scheduler)
 
-    prompt = ["宇航员在火星上骑马的照片",
-              "飞行员在地球上骑牛的照片"]
-    # prompt = ["宇航员在火星上骑马的照片"]
+    # prompt = ["宇航员在火星上骑马的照片",
+    #           "飞行员在地球上骑牛的照片"]
+    prompt = ["宇航员在火星上骑马的照片" for bsz in range(args.batch_size)]
 
     # Warm up
     pipe(prompt, num_inference_steps=10, vae_batch_size=vae_batch_size,
@@ -379,6 +379,6 @@ if __name__ == "__main__":
         f"p90 latency: {np.percentile(time_costs, 90):2f} s, p95 latency: {np.percentile(time_costs, 95):2f} s."
     )
     for i, image in enumerate(images):
-        saved_path=args.image_path+'/'+'_'.join(prompt[i].split(" "))+".png"
+        saved_path=args.image_path+'/'+f"{args.height}-{args.width}_bsz-{args.batch_size}_"+'_'.join(prompt[i].split(" "))+".png"
         image.save(saved_path)
         print(f"Image saved in {saved_path}!")

@@ -39,6 +39,9 @@ void PaddleBackend::BuildOption(const PaddleBackendOption& option) {
       // wangbojun set min_subgraph_size=0 for debug
       // config_.EnableTensorRtEngine(option.trt_option.max_workspace_size, option.trt_option.max_batch_size, 3, precision, use_static);
       config_.EnableTensorRtEngine(option.trt_option.max_workspace_size, option.trt_option.max_batch_size, 20, precision, use_static);
+      config_.EnableTensorRTMemoryOptim(true,1);
+      // for debug
+      FDINFO << "@@@ eanble EnableTensorRTMemoryOptim with args (true,1)" << std::endl;
       // config_.SwitchIrDebug(true);
       SetTRTDynamicShapeToConfig(option);
 #else

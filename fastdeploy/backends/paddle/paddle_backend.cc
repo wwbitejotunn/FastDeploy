@@ -155,9 +155,10 @@ bool PaddleBackend::InitFromPaddle(const std::string& model_file,
     auto curr_model_dir = GetDirFromPath(model_file);
     std::string shape_range_info = PathJoin(curr_model_dir, "shape_range_info.pbtxt");
     if (!CheckFileExists(shape_range_info)) {
-      FDINFO << "Start generating shape range info file." << std::endl;
+      FDINFO << "Start generating shape range info file with gpu." << std::endl;
       paddle_infer::Config analysis_config;
       analysis_config.SetModel(model_file, params_file);
+      analysis_config.EnableUseGpu(option.gpu_mem_init_size, option.gpu_id);
       analysis_config.CollectShapeRangeInfo(shape_range_info);
       auto predictor_tmp = paddle_infer::CreatePredictor(analysis_config);
       std::map<std::string, std::vector<int>> max_shape;
@@ -169,6 +170,10 @@ bool PaddleBackend::InitFromPaddle(const std::string& model_file,
       CollectShapeRun(predictor_tmp.get(), min_shape);
       CollectShapeRun(predictor_tmp.get(), opt_shape);
       FDINFO << "Finish generating shape range info file." << std::endl;
+      FDINFO << "!!! Notice that for stable-diffusion with 1024 vae, we do shape collection and actually tensorrt run seperatly." << std::endl;
+      FDINFO << "!!! Therefore, please run again with shape range info file after all shape range info file generated." << std::endl;
+      // TODO(wangbojun), here we stop the run after collect shape, so that we can collect shape and tune tensorrt seperatly.
+      return true;
     }
     FDINFO << "Start loading shape range info file "<< shape_range_info << " to set TensorRT dynamic shape." << std::endl;
     config_.EnableTunedTensorRtDynamicShape(shape_range_info, false);

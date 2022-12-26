@@ -63,3 +63,7 @@ python infer_ldm-1024vae.py  \
 --height=1024 --width=1024
 ```
 可参考batch_run_ldm_1024vae.sh
+
+由于collect shape需要大量的显存, 首次运行会先进行shape range info file的建立工作, shape range info file完成后程序会弹出. 此时需要再运行一次推理方可.
+
+同时, 建议collect shape在大显存的显卡(a100)上运行, 在小显存显卡上进行推理可以将模型对应的shape range info file直接拷贝到相应的机子上, 跳过collect shape的步骤.

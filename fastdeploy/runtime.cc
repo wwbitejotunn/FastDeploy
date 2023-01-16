@@ -309,6 +309,7 @@ void RuntimeOption::SetPaddleMKLDNN(bool pd_mkldnn) {
 }
 
 void RuntimeOption::DeletePaddleBackendPass(const std::string& pass_name) {
+  std::cout<<"@ delete pass:"<<pass_name<<std::endl;
   pd_delete_pass_names.push_back(pass_name);
 }
 void RuntimeOption::EnablePaddleLogInfo() { pd_enable_log_info = true; }

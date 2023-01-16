@@ -144,7 +144,8 @@ def create_paddle_inference_runtime(model_dir,
                                     use_trt=False,
                                     dynamic_shape=None,
                                     use_fp16=False,
-                                    device_id=0):
+                                    device_id=0,
+                                    delete_pass_list=None):
     option = fd.RuntimeOption()
     # option.enable_paddle_log_info()
     option.use_paddle_backend()
@@ -171,6 +172,10 @@ def create_paddle_inference_runtime(model_dir,
     model_file = os.path.join(model_dir, model_prefix, "inference.pdmodel")
     params_file = os.path.join(model_dir, model_prefix, "inference.pdiparams")
     option.set_model_path(model_file, params_file)
+    if delete_pass_list is not None:
+        for delete_pass in delete_pass_list:
+            option.delete_paddle_backend_pass(delete_pass)
+
     return fd.Runtime(option)
 
 
@@ -314,7 +319,8 @@ if __name__ == "__main__":
             # False,
             vae_dynamic_shape,
             use_fp16=False,
-            device_id=args.device_id)
+            device_id=args.device_id,
+            delete_pass_list=["preln_elementwise_groupnorm_act_pass","elementwise_groupnorm_act_pass"])
         print("=== build unet_runtime")
 
         start = time.time()

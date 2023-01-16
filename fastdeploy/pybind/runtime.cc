@@ -53,6 +53,8 @@ void BindRuntime(pybind11::module& m) {
       .def("disable_paddle_trt_collect_shape", &RuntimeOption::DisablePaddleTrtCollectShape)
       .def("use_ipu", &RuntimeOption::UseIpu)
       .def("set_ipu_config", &RuntimeOption::SetIpuConfig)
+      .def("delete_paddle_backend_pass",
+           &RuntimeOption::DeletePaddleBackendPass)
       .def_readwrite("model_file", &RuntimeOption::model_file)
       .def_readwrite("params_file", &RuntimeOption::params_file)
       .def_readwrite("model_format", &RuntimeOption::model_format)

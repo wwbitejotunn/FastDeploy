@@ -25,6 +25,9 @@ void PaddleBackend::BuildOption(const PaddleBackendOption& option) {
   if (option.use_gpu) {
     config_.EnableUseGpu(option.gpu_mem_init_size, option.gpu_id);
     if (option_.external_stream_) {
+      FDINFO << "Will try to use external_stream of paddle Paddle inference Backend."
+        << std::endl;
+
       config_.SetExecStream(option_.external_stream_);
     }
     if (option.enable_trt) {
@@ -44,9 +47,11 @@ void PaddleBackend::BuildOption(const PaddleBackendOption& option) {
                "file will save to the directory where paddle model saved."
             << std::endl;
         use_static = true;
+        config_.SetOptimCacheDir(option.trt_option.serialize_file);
+
       }
       config_.EnableTensorRtEngine(option.trt_option.max_workspace_size,
-                                   option.trt_option.max_batch_size, 3,
+                                   option.trt_option.max_batch_size, 20,
                                    precision, use_static);
       SetTRTDynamicShapeToConfig(option);
     }
@@ -122,6 +127,9 @@ bool PaddleBackend::InitFromPaddle(const std::string& model_buffer,
                  "file will save to the directory where paddle model saved."
               << std::endl;
           use_static = true;
+          if(option.model_from_memory_){
+            config_.SetOptimCacheDir(option.trt_option.serialize_file);
+          }
         }
         config_.EnableTensorRtEngine(option.trt_option.max_workspace_size,
                                      option.trt_option.max_batch_size, 3,
@@ -221,25 +229,45 @@ bool PaddleBackend::Infer(std::vector<FDTensor>& inputs,
             << inputs_desc_.size() << ")." << std::endl;
     return false;
   }
-
-  for (size_t i = 0; i < inputs.size(); ++i) {
-    auto handle = predictor_->GetInputHandle(inputs[i].name);
-    ShareTensorFromFDTensor(handle.get(), inputs[i]);
-  }
-
-  predictor_->Run();
-
   // output share backend memory only support CPU or GPU
   if (option_.use_ipu) {
     copy_to_fd = true;
   }
-  outputs->resize(outputs_desc_.size());
-  for (size_t i = 0; i < outputs_desc_.size(); ++i) {
-    auto handle = predictor_->GetOutputHandle(outputs_desc_[i].name);
-    if (copy_to_fd) {
-      (*outputs)[i].is_pinned_memory = option_.enable_pinned_memory;
+  for (size_t i = 0; i < inputs.size(); ++i) {
+    auto handle = predictor_->GetInputHandle(inputs[i].name);
+    ShareTensorFromFDTensor(handle.get(), inputs[i]);
+  }
+  // handle prebinded output by bind_output_tensor
+  std::unordered_set<std::string> prebinded_output_name;  
+  // prebinded output only work for copy_to_fd==false (zero_copy_infer)
+  if (!copy_to_fd) {
+    for (size_t i = 0; i < (*outputs).size(); ++i) {
+      auto output_name=(*outputs)[i].name;
+      // unbinded output have a empty name, skip here
+      if(output_name.empty()){
+        continue;
+      }
+      prebinded_output_name.insert(output_name);
+      auto handle = predictor_->GetOutputHandle(output_name);
+      ShareOutTensorFromFDTensor(handle.get(), (*outputs)[i]);
     }
-    PaddleTensorToFDTensor(handle, &((*outputs)[i]), copy_to_fd);
+  }
+  predictor_->Run();
+  // handle remine unbinded output
+  // TODO(wangboyun) (copy_to_fd only use for debug)
+  if(copy_to_fd){
+    outputs->resize(outputs_desc_.size());
+    for (size_t i = 0; i < outputs_desc_.size(); ++i) {
+      // skip prebinded output
+      if(prebinded_output_name.count(outputs_desc_[i].name)){
+        continue;
+      }
+      auto handle = predictor_->GetOutputHandle(outputs_desc_[i].name);
+      if (copy_to_fd) {
+        (*outputs)[i].is_pinned_memory = option_.enable_pinned_memory;
+      }
+      PaddleTensorToFDTensor(handle, &((*outputs)[i]), copy_to_fd);
+    }
   }
   return true;
 }

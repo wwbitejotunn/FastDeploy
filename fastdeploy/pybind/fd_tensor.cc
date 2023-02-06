@@ -249,6 +249,42 @@ void BindFDTensor(pybind11::module& m) {
       .def("from_numpy", [](FDTensor& self, pybind11::array& pyarray, bool share_buffer = false) {
         PyArrayToTensor(pyarray, &self, share_buffer);
       })
+      .def("from_external_data",[](const std::string& name,
+                                   size_t data_addr,
+                                   const std::vector<int64_t>& shape, 
+                                   const std::string& data_type, 
+                                   const std::string& data_place, 
+                                   int device_id){
+        auto fd_data_type = FDDataType::UNKNOWN1;
+        if (data_type == "float32") {
+          fd_data_type = FDDataType::FP32;
+        } else if (data_type == "float16") {
+          fd_data_type = FDDataType::FP16;
+        } else if (data_type == "int32") {
+          fd_data_type = FDDataType::INT32;
+        } else if (data_type == "int64") {
+          fd_data_type = FDDataType::INT64;
+        } else {
+          FDASSERT(false,
+            "FDTensor.from_external_data, datatype \"%s\" is not supported.", data_type.c_str());
+        }
+
+        Device fd_data_place;
+        if (data_place == "CUDA"){
+          fd_data_place = Device::GPU;
+        } else {
+          FDASSERT(false,
+                ("Device type " +
+                  data_place +
+                  " is not support by FDTensor.from_external_data.").c_str());
+        }
+        void * data_ptr = nullptr;
+        data_ptr=reinterpret_cast<void*>(data_addr);
+        FDTensor fd_tensor(name);
+        fd_tensor.SetExternalData(shape,fd_data_type,static_cast<void*>(data_ptr),
+                              fd_data_place,device_id);
+        return fd_tensor;
+      })
       .def("to_dlpack", &FDTensorToDLPack)
       .def("from_dlpack",&FDTensorFromDLPack)
       .def("print_info", &FDTensor::PrintInfo);

@@ -71,6 +71,13 @@ class Runtime:
         :param fdtensor: (fastdeploy.FDTensor)The input FDTensor.
         """
         self._runtime.bind_input_tensor(name, fdtensor)
+    def bind_output_tensor(self, name, fdtensor):
+        """Bind FDTensor by name, no copy and share input memory
+
+        :param name: (str)The name of input data.
+        :param fdtensor: (fastdeploy.FDTensor)The input FDTensor.
+        """
+        self._runtime.bind_output_tensor(name, fdtensor)
 
     def zero_copy_infer(self):
         """No params inference the model.
